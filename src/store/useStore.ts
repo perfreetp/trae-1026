@@ -267,7 +267,7 @@ export const useStore = create<AppState>((set, get) => ({
     set((state) => {
       const newRequests = state.sparePartRequests.map((r) =>
         r.id === requestId
-          ? { ...r, status: 'rejected' as const, approverId, approverName, rejectReason: reason }
+          ? { ...r, status: 'rejected' as const, approverId, approverName, rejectReason: reason, rejectedAt: new Date().toLocaleString() }
           : r
       );
       saveToStorage('sparePartRequests', newRequests);

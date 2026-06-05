@@ -371,7 +371,7 @@ export default function Tasks() {
                 <div className="mt-1">{getStatusBadge(selectedTask.status)}</div>
               </div>
               <button
-                onClick={() => { setShowDetailModal(false); setHighlightedTaskId(null); }}
+                onClick={() => { setShowDetailModal(false); setHighlightedTaskId(null); setOpenTaskDetailId(null); }}
                 className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
               >
                 <X className="w-5 h-5" />
@@ -427,7 +427,7 @@ export default function Tasks() {
             </div>
             <div className="p-5 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
               <button
-                onClick={() => { setShowDetailModal(false); setHighlightedTaskId(null); }}
+                onClick={() => { setShowDetailModal(false); setHighlightedTaskId(null); setOpenTaskDetailId(null); }}
                 className="btn btn-outline flex-1"
               >
                 关闭
@@ -437,6 +437,8 @@ export default function Tasks() {
                   onClick={() => {
                     handleStartTask(selectedTask.id);
                     setShowDetailModal(false);
+                    setHighlightedTaskId(null);
+                    setOpenTaskDetailId(null);
                   }}
                   className="btn btn-primary flex-1 flex items-center justify-center gap-2"
                 >
@@ -449,6 +451,8 @@ export default function Tasks() {
                   onClick={() => {
                     openScanModal(selectedTask);
                     setShowDetailModal(false);
+                    setHighlightedTaskId(null);
+                    setOpenTaskDetailId(null);
                   }}
                   className="btn btn-primary flex-1 flex items-center justify-center gap-2"
                 >

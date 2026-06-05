@@ -165,6 +165,7 @@ export interface SparePartRequest {
   rejectReason?: string;
   createdAt: string;
   approvedAt?: string;
+  rejectedAt?: string;
 }
 
 export interface TeamPerformance {

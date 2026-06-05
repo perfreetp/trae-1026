@@ -200,7 +200,7 @@ export default function Devices() {
                 <p className="text-sm text-gray-500">{selectedDevice.code}</p>
               </div>
               <button
-                onClick={() => setSelectedDevice(null)}
+                onClick={() => { setSelectedDevice(null); setOpenDeviceDetailId(null); }}
                 className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
               >
                 <X className="w-5 h-5" />

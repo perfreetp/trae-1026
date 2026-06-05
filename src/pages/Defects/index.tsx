@@ -135,6 +135,7 @@ export default function Defects() {
       deadline: assignDeadline,
     });
     setShowAssignModal(false);
+    setOpenDefectDetailId(null);
     const updated = defects.find((d) => d.id === showDetail.id);
     if (updated) {
       setShowDetail({ ...updated, status: 'assigned', assigneeId: assignAssignee, assigneeName: getUserName(assignAssignee), deadline: assignDeadline });
@@ -153,6 +154,7 @@ export default function Defects() {
     });
     setShowRectifyModal(false);
     setRectificationDesc('');
+    setOpenDefectDetailId(null);
     const updated = defects.find((d) => d.id === showDetail.id);
     if (updated) {
       setShowDetail({
@@ -177,6 +179,7 @@ export default function Defects() {
     setShowRecheckModal(false);
     setRecheckResult('');
     setRecheckPassed(true);
+    setOpenDefectDetailId(null);
     const updated = defects.find((d) => d.id === showDetail.id);
     if (updated) {
       setShowDetail({
@@ -400,7 +403,7 @@ export default function Defects() {
             <div className="p-5 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
               <h3 className="font-semibold text-gray-900">缺陷详情</h3>
               <button
-                onClick={() => setShowDetail(null)}
+                onClick={() => { setShowDetail(null); setOpenDefectDetailId(null); }}
                 className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
               >
                 <X className="w-5 h-5" />
@@ -618,7 +621,7 @@ export default function Defects() {
             <div className="p-5 border-b border-gray-100 flex items-center justify-between">
               <h3 className="font-semibold text-gray-900">缺陷派单</h3>
               <button
-                onClick={() => { setShowAssignModal(false); setShowDetail(null); }}
+                onClick={() => { setShowAssignModal(false); setShowDetail(null); setOpenDefectDetailId(null); }}
                 className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
               >
                 <X className="w-5 h-5" />
@@ -656,7 +659,7 @@ export default function Defects() {
             </div>
             <div className="p-5 border-t border-gray-100 flex gap-3">
               <button
-                onClick={() => { setShowAssignModal(false); setShowDetail(null); }}
+                onClick={() => { setShowAssignModal(false); setShowDetail(null); setOpenDefectDetailId(null); }}
                 className="btn btn-outline flex-1"
               >
                 取消
@@ -679,7 +682,7 @@ export default function Defects() {
             <div className="p-5 border-b border-gray-100 flex items-center justify-between">
               <h3 className="font-semibold text-gray-900">提交整改</h3>
               <button
-                onClick={() => { setShowRectifyModal(false); setShowDetail(null); }}
+                onClick={() => { setShowRectifyModal(false); setShowDetail(null); setOpenDefectDetailId(null); }}
                 className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
               >
                 <X className="w-5 h-5" />
@@ -699,7 +702,7 @@ export default function Defects() {
             </div>
             <div className="p-5 border-t border-gray-100 flex gap-3">
               <button
-                onClick={() => { setShowRectifyModal(false); setShowDetail(null); }}
+                onClick={() => { setShowRectifyModal(false); setShowDetail(null); setOpenDefectDetailId(null); }}
                 className="btn btn-outline flex-1"
               >
                 取消
@@ -722,7 +725,7 @@ export default function Defects() {
             <div className="p-5 border-b border-gray-100 flex items-center justify-between">
               <h3 className="font-semibold text-gray-900">复查确认</h3>
               <button
-                onClick={() => { setShowRecheckModal(false); setShowDetail(null); }}
+                onClick={() => { setShowRecheckModal(false); setShowDetail(null); setOpenDefectDetailId(null); }}
                 className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
               >
                 <X className="w-5 h-5" />
@@ -775,7 +778,7 @@ export default function Defects() {
             </div>
             <div className="p-5 border-t border-gray-100 flex gap-3">
               <button
-                onClick={() => { setShowRecheckModal(false); setShowDetail(null); }}
+                onClick={() => { setShowRecheckModal(false); setShowDetail(null); setOpenDefectDetailId(null); }}
                 className="btn btn-outline flex-1"
               >
                 取消
