@@ -2,7 +2,6 @@ import { useState, useMemo } from 'react';
 import {
   Server,
   Search,
-  Filter,
   MapPin,
   Calendar,
   AlertTriangle,
@@ -10,12 +9,15 @@ import {
   X,
   FileText,
   Wrench,
+  ClipboardList,
+  User,
+  Camera,
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import type { Device } from '../../types';
 
 export default function Devices() {
-  const { devices, maintenanceRecords } = useStore();
+  const { devices, maintenanceRecords, inspectionRecords } = useStore();
   const [category, setCategory] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -78,6 +80,20 @@ export default function Devices() {
     return maintenanceRecords.filter((r) => r.deviceId === deviceId);
   };
 
+  const getDeviceInspectionRecords = (deviceId: string) => {
+    return inspectionRecords.filter((r) => r.deviceId === deviceId);
+  };
+
+  const getCategoryLabel = (category: string) => {
+    const map: Record<string, string> = {
+      track: '工务设备',
+      signal: '电务设备',
+      power: '供电设备',
+      communication: '通信设备',
+    };
+    return map[category] || category;
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -87,7 +103,7 @@ export default function Devices() {
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
@@ -98,12 +114,12 @@ export default function Devices() {
             className="w-full h-10 pl-9 pr-4 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-300"
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {categories.map((cat) => (
             <button
               key={cat.value}
               onClick={() => setCategory(cat.value)}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
                 category === cat.value
                   ? 'bg-primary-50 text-primary-700'
                   : 'bg-white text-gray-600 hover:bg-gray-50'
@@ -113,22 +129,19 @@ export default function Devices() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1">
-          <span className="text-sm text-gray-500">状态：</span>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-10 px-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-100"
-          >
-            <option value="all">全部</option>
-            <option value="normal">正常</option>
-            <option value="warning">预警</option>
-            <option value="fault">故障</option>
-          </select>
-        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="h-10 px-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-100"
+        >
+          <option value="all">全部状态</option>
+          <option value="normal">正常</option>
+          <option value="warning">预警</option>
+          <option value="fault">故障</option>
+        </select>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredDevices.map((device) => (
           <div
             key={device.id}
@@ -145,34 +158,31 @@ export default function Devices() {
             <p className="text-sm text-gray-500 mt-0.5">{device.code}</p>
             <div className="mt-3 space-y-2 text-xs text-gray-500">
               <div className="flex items-center gap-2">
-                <MapPin className="w-3.5 h-3.5" />
-                {device.line} {device.location}
+                <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="truncate">{device.line} {device.location}</span>
               </div>
               <div className="flex items-center gap-2">
-                <Calendar className="w-3.5 h-3.5" />
-                安装：{device.installDate}
+                <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>安装于 {device.installDate}</span>
               </div>
             </div>
             <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
               {getStatusBadge(device.status)}
-              <span className="text-xs text-gray-400">{device.type}</span>
+              <span className="text-xs text-gray-400">
+                巡检 {getDeviceInspectionRecords(device.id).length} 次
+              </span>
             </div>
           </div>
         ))}
       </div>
 
       {selectedDevice && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setSelectedDevice(null)}>
-          <div className="bg-white rounded-2xl w-full max-w-3xl mx-4 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="p-5 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary-50 rounded-lg flex items-center justify-center">
-                  <Server className="w-5 h-5 text-primary-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">{selectedDevice.name}</h3>
-                  <p className="text-xs text-gray-500">{selectedDevice.code}</p>
-                </div>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+              <div>
+                <h3 className="font-semibold text-gray-900">{selectedDevice.name}</h3>
+                <p className="text-sm text-gray-500">{selectedDevice.code}</p>
               </div>
               <button
                 onClick={() => setSelectedDevice(null)}
@@ -182,103 +192,102 @@ export default function Devices() {
               </button>
             </div>
 
-            <div className="border-b border-gray-100">
-              <div className="flex">
-                {[
-                  { key: 'info', label: '基本信息', icon: FileText },
-                  { key: 'inspection', label: '巡检记录', icon: Calendar },
-                  { key: 'maintenance', label: '维修记录', icon: Wrench },
-                ].map((tab) => (
-                  <button
-                    key={tab.key}
-                    onClick={() => setActiveTab(tab.key as typeof activeTab)}
-                    className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
-                      activeTab === tab.key
-                        ? 'border-primary-600 text-primary-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    <tab.icon className="w-4 h-4" />
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
+            <div className="flex border-b border-gray-100 flex-shrink-0">
+              {[
+                { key: 'info', label: '基本信息', icon: FileText },
+                { key: 'inspection', label: '巡检记录', icon: ClipboardList },
+                { key: 'maintenance', label: '维修记录', icon: Wrench },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key as typeof activeTab)}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === tab.key
+                      ? 'text-primary-600 border-primary-600'
+                      : 'text-gray-500 border-transparent hover:text-gray-700'
+                  }`}
+                >
+                  <tab.icon className="w-4 h-4" />
+                  <span className="hidden sm:inline">{tab.label}</span>
+                </button>
+              ))}
             </div>
 
-            <div className="p-5">
+            <div className="flex-1 overflow-y-auto p-5">
               {activeTab === 'info' && (
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <div>
-                      <span className="text-sm text-gray-500">设备名称</span>
-                      <p className="font-medium text-gray-900 mt-1">{selectedDevice.name}</p>
-                    </div>
-                    <div>
-                      <span className="text-sm text-gray-500">设备编号</span>
-                      <p className="font-medium text-gray-900 mt-1">{selectedDevice.code}</p>
-                    </div>
-                    <div>
-                      <span className="text-sm text-gray-500">设备类型</span>
-                      <p className="font-medium text-gray-900 mt-1">{selectedDevice.type}</p>
-                    </div>
-                    <div>
-                      <span className="text-sm text-gray-500">设备状态</span>
-                      <div className="mt-1">{getStatusBadge(selectedDevice.status)}</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="sm:col-span-2">
+                    <div className="w-full h-40 bg-gradient-to-br from-primary-50 to-primary-100 rounded-xl flex items-center justify-center">
+                      <Server className="w-16 h-16 text-primary-500" />
                     </div>
                   </div>
-                  <div className="space-y-4">
-                    <div>
-                      <span className="text-sm text-gray-500">所属线路</span>
-                      <p className="font-medium text-gray-900 mt-1">{selectedDevice.line}</p>
-                    </div>
-                    <div>
-                      <span className="text-sm text-gray-500">安装位置</span>
-                      <p className="font-medium text-gray-900 mt-1">{selectedDevice.location}</p>
-                    </div>
-                    <div>
-                      <span className="text-sm text-gray-500">安装日期</span>
-                      <p className="font-medium text-gray-900 mt-1">{selectedDevice.installDate}</p>
-                    </div>
-                    <div>
-                      <span className="text-sm text-gray-500">生产厂家</span>
-                      <p className="font-medium text-gray-900 mt-1">{selectedDevice.manufacturer || '-'}</p>
-                    </div>
-                    <div>
-                      <span className="text-sm text-gray-500">设备型号</span>
-                      <p className="font-medium text-gray-900 mt-1">{selectedDevice.model || '-'}</p>
-                    </div>
+                  <InfoItem label="设备编号" value={selectedDevice.code} />
+                  <InfoItem label="设备名称" value={selectedDevice.name} />
+                  <InfoItem label="设备类型" value={getCategoryLabel(selectedDevice.category)} />
+                  <InfoItem label="设备状态" value={selectedDevice.status === 'normal' ? '正常' : selectedDevice.status === 'warning' ? '预警' : '故障'} />
+                  <InfoItem label="所属线路" value={selectedDevice.line} />
+                  <InfoItem label="所在位置" value={selectedDevice.location} />
+                  <InfoItem label="安装日期" value={selectedDevice.installDate} />
+                  <InfoItem label="下次检修" value={selectedDevice.nextMaintenance} />
+                  <div className="sm:col-span-2">
+                    <InfoItem label="设备描述" value={selectedDevice.description} />
                   </div>
                 </div>
               )}
 
               {activeTab === 'inspection' && (
                 <div className="space-y-3">
-                  {[
-                    { date: '2026-06-03', inspector: '张工', result: '正常', remark: '设备运行正常' },
-                    { date: '2026-05-27', inspector: '李工', result: '正常', remark: '无异常' },
-                    { date: '2026-05-20', inspector: '张工', result: '正常', remark: '-' },
-                    { date: '2026-05-13', inspector: '李工', result: '预警', remark: '发现轻微磨损，已记录跟踪' },
-                  ].map((record, i) => (
-                    <div key={i} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-                      <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
-                        <Calendar className="w-5 h-5 text-gray-400" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-900">{record.date}</span>
-                          <span className={`status-badge ${
-                            record.result === '正常' ? 'bg-success-50 text-success-600' : 'bg-warning-50 text-warning-600'
+                  {getDeviceInspectionRecords(selectedDevice.id).length > 0 ? (
+                    getDeviceInspectionRecords(selectedDevice.id).map((record) => (
+                      <div key={record.id} className="border border-gray-100 rounded-xl p-4">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-primary-50 rounded-lg flex items-center justify-center">
+                              <ClipboardList className="w-5 h-5 text-primary-600" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-900 text-sm">{record.taskName}</p>
+                              <p className="text-xs text-gray-500">{record.checkedAt}</p>
+                            </div>
+                          </div>
+                          <span className={`status-badge text-xs ${
+                            record.status === 'normal' ? 'bg-success-50 text-success-600' : 'bg-warning-50 text-warning-600'
                           }`}>
-                            {record.result}
+                            {record.status === 'normal' ? '正常' : '异常'}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-500">巡检人：{record.inspector}</p>
-                        {record.remark && record.remark !== '-' && (
-                          <p className="text-xs text-gray-400 mt-1">{record.remark}</p>
+                        <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
+                          <User className="w-3.5 h-3.5" />
+                          <span>巡检员：{record.inspectorName}</span>
+                        </div>
+                        {record.checkItems && record.checkItems.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mb-2">
+                            {record.checkItems.map((item, i) => (
+                              <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                                {item}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {record.note && (
+                          <p className="text-xs text-gray-500 bg-gray-50 p-2 rounded-lg">
+                            备注：{record.note}
+                          </p>
+                        )}
+                        {record.photos && record.photos.length > 0 && (
+                          <div className="flex items-center gap-1.5 mt-2 text-xs text-gray-500">
+                            <Camera className="w-3.5 h-3.5" />
+                            <span>{record.photos.length} 张照片</span>
+                          </div>
                         )}
                       </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-12">
+                      <ClipboardList className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                      <p className="text-gray-500 text-sm">暂无巡检记录</p>
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
 
@@ -286,26 +295,42 @@ export default function Devices() {
                 <div className="space-y-3">
                   {getDeviceMaintenanceRecords(selectedDevice.id).length > 0 ? (
                     getDeviceMaintenanceRecords(selectedDevice.id).map((record) => (
-                      <div key={record.id} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-                        <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
-                          <Wrench className="w-5 h-5 text-gray-400" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-gray-900">{record.date}</span>
-                            <span className="status-badge bg-blue-50 text-blue-600">
-                              {{ repair: '维修', maintenance: '保养', replacement: '更换' }[record.type]}
-                            </span>
+                      <div key={record.id} className="border border-gray-100 rounded-xl p-4">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-warning-50 rounded-lg flex items-center justify-center">
+                              <Wrench className="w-5 h-5 text-warning-600" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-900 text-sm">{record.type}</p>
+                              <p className="text-xs text-gray-500">{record.date}</p>
+                            </div>
                           </div>
-                          <p className="text-sm text-gray-600">{record.description}</p>
-                          {record.cost && (
-                            <p className="text-xs text-gray-400 mt-1">费用：¥{record.cost}</p>
-                          )}
+                          <span className={`status-badge text-xs ${
+                            record.status === 'completed' ? 'bg-success-50 text-success-600' : 'bg-warning-50 text-warning-600'
+                          }`}>
+                            {record.status === 'completed' ? '已完成' : '进行中'}
+                          </span>
                         </div>
+                        <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
+                          <User className="w-3.5 h-3.5" />
+                          <span>维修人：{record.technician}</span>
+                        </div>
+                        <p className="text-xs text-gray-600">
+                          <span className="text-gray-500">问题描述：</span>{record.description}
+                        </p>
+                        {record.result && (
+                          <p className="text-xs text-gray-600 mt-1">
+                            <span className="text-gray-500">处理结果：</span>{record.result}
+                          </p>
+                        )}
                       </div>
                     ))
                   ) : (
-                    <p className="text-sm text-gray-400 text-center py-8">暂无维修记录</p>
+                    <div className="text-center py-12">
+                      <Wrench className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                      <p className="text-gray-500 text-sm">暂无维修记录</p>
+                    </div>
                   )}
                 </div>
               )}
@@ -313,6 +338,15 @@ export default function Devices() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function InfoItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs text-gray-500 mb-1">{label}</p>
+      <p className="text-sm text-gray-900 font-medium">{value || '-'}</p>
     </div>
   );
 }

@@ -7,21 +7,53 @@ import {
   Clock,
   MapPin,
   Search,
-  Filter,
   Upload,
   X,
   AlertTriangle,
+  Plus,
+  Save,
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
-import type { InspectionTask } from '../../types';
+import type { InspectionTask, Device } from '../../types';
+
+interface ScanForm {
+  deviceId: string;
+  checkItems: string[];
+  note: string;
+  photos: string[];
+}
+
+const defaultCheckItems = [
+  '外观完好无破损',
+  '功能正常无异常',
+  '清洁无锈蚀',
+  '螺栓紧固无松动',
+  '标识清晰完整',
+];
 
 export default function Tasks() {
-  const { tasks, currentUser, devices, routes, updateTaskStatus, isOnline } = useStore();
+  const {
+    tasks,
+    currentUser,
+    devices,
+    routes,
+    updateTaskStatus,
+    updateTaskProgress,
+    addInspectionRecord,
+    isOnline,
+    saveOfflineData,
+  } = useStore();
+
   const [showScanModal, setShowScanModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState<InspectionTask | null>(null);
   const [filter, setFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [photos, setPhotos] = useState<string[]>([]);
+  const [scanForm, setScanForm] = useState<ScanForm>({
+    deviceId: '',
+    checkItems: [],
+    note: '',
+    photos: [],
+  });
 
   const myTasks = useMemo(() => {
     return tasks.filter((t) => t.assigneeId === currentUser.id);
@@ -68,12 +100,15 @@ export default function Tasks() {
     const files = e.target.files;
     if (files) {
       const newPhotos = Array.from(files).map((_, i) => `photo_${Date.now()}_${i}`);
-      setPhotos([...photos, ...newPhotos]);
+      setScanForm((prev) => ({ ...prev, photos: [...prev.photos, ...newPhotos] }));
     }
   };
 
   const removePhoto = (index: number) => {
-    setPhotos(photos.filter((_, i) => i !== index));
+    setScanForm((prev) => ({
+      ...prev,
+      photos: prev.photos.filter((_, i) => i !== index),
+    }));
   };
 
   const getRouteName = (routeId: string) => {
@@ -84,23 +119,91 @@ export default function Tasks() {
     return routes.find((r) => r.id === routeId)?.checkpoints || [];
   };
 
+  const getDeviceName = (deviceId: string) => {
+    return devices.find((d) => d.id === deviceId)?.name || '未知设备';
+  };
+
+  const toggleCheckItem = (item: string) => {
+    setScanForm((prev) => ({
+      ...prev,
+      checkItems: prev.checkItems.includes(item)
+        ? prev.checkItems.filter((i) => i !== item)
+        : [...prev.checkItems, item],
+    }));
+  };
+
+  const handleSubmitScan = () => {
+    if (!selectedTask || !scanForm.deviceId) return;
+
+    const device = devices.find((d) => d.id === scanForm.deviceId);
+    const checkpoints = getCheckpoints(selectedTask.routeId);
+    const currentProgress = selectedTask.progress;
+    const progressIncrement = checkpoints.length > 0 ? Math.floor(100 / checkpoints.length) : 10;
+    const newProgress = Math.min(currentProgress + progressIncrement, 100);
+
+    const recordData = {
+      taskId: selectedTask.id,
+      taskName: selectedTask.name,
+      deviceId: scanForm.deviceId,
+      deviceName: device?.name || '未知设备',
+      deviceCode: device?.code || '',
+      inspectorId: currentUser.id,
+      inspectorName: currentUser.name,
+      checkItems: scanForm.checkItems,
+      note: scanForm.note,
+      photos: scanForm.photos,
+      status: 'normal' as const,
+    };
+
+    if (isOnline) {
+      addInspectionRecord(recordData);
+    } else {
+      saveOfflineData({ type: 'inspectionRecord', data: recordData });
+    }
+
+    updateTaskProgress(selectedTask.id, newProgress);
+    if (newProgress >= 100) {
+      updateTaskStatus(selectedTask.id, 'completed', 100);
+    }
+
+    setShowScanModal(false);
+    setSelectedTask(null);
+    setScanForm({
+      deviceId: '',
+      checkItems: [],
+      note: '',
+      photos: [],
+    });
+  };
+
+  const openScanModal = (task: InspectionTask) => {
+    setSelectedTask(task);
+    setShowScanModal(true);
+    setScanForm({
+      deviceId: '',
+      checkItems: [],
+      note: '',
+      photos: [],
+    });
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-gray-900">任务执行</h1>
           <p className="text-sm text-gray-500 mt-1">查看和执行分配给您的巡检任务</p>
         </div>
         {!isOnline && (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-warning-50 text-warning-600 rounded-lg text-sm">
-            <Clock className="w-4 h-4" />
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-warning-50 text-warning-600 rounded-lg text-sm w-fit">
+            <Clock className="w-4 h-4 flex-shrink-0" />
             离线模式 - 数据将在联网后同步
           </div>
         )}
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 relative">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
@@ -110,46 +213,42 @@ export default function Tasks() {
             className="w-full h-10 pl-9 pr-4 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-300"
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {(['all', 'pending', 'in_progress', 'completed'] as const).map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-              filter === f
-                ? 'bg-primary-50 text-primary-700'
-                : 'bg-white text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            {({ all: '全部', pending: '待执行', in_progress: '进行中', completed: '已完成' } as Record<string, string>)[f]}
-          </button>
-        ))}
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                filter === f
+                  ? 'bg-primary-50 text-primary-700'
+                  : 'bg-white text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {({ all: '全部', pending: '待执行', in_progress: '进行中', completed: '已完成' } as Record<string, string>)[f]}
+            </button>
+          ))}
         </div>
-        <button className="btn btn-outline flex items-center gap-2">
-          <Filter className="w-4 h-4" />
-          筛选
-        </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredTasks.map((task) => {
           const checkpoints = getCheckpoints(task.routeId);
           const completedCount = Math.floor((task.progress / 100) * checkpoints.length);
           return (
             <div key={task.id} className="card p-5 card-hover">
               <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
                     <h3 className="font-semibold text-gray-900">{task.name}</h3>
                     {getStatusBadge(task.status)}
                   </div>
-                  <div className="mt-2 flex items-center gap-4 text-sm text-gray-500">
+                  <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-gray-500">
                     <span className="flex items-center gap-1">
-                      <MapPin className="w-4 h-4" />
+                      <MapPin className="w-4 h-4 flex-shrink-0" />
                       {getRouteName(task.routeId)}
                     </span>
                     <span className="flex items-center gap-1">
-                      <Clock className="w-4 h-4" />
+                      <Clock className="w-4 h-4 flex-shrink-0" />
                       {task.scheduledDate}
                     </span>
                   </div>
@@ -171,46 +270,45 @@ export default function Tasks() {
                 </div>
               </div>
 
-              <div className="mt-4 pt-4 border-t border-gray-100 flex items-center gap-3">
+              <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center gap-3">
                 {task.status === 'pending' && (
                   <button
                     onClick={() => handleStartTask(task.id)}
-                    className="btn btn-primary flex items-center gap-2 flex-1"
+                    className="btn btn-primary flex items-center gap-2 flex-1 min-w-[120px]"
                   >
-                    <Play className="w-4 h-4" />
+                    <Play className="w-4 h-4 flex-shrink-0" />
                     开始巡检
                   </button>
                 )}
                 {task.status === 'in_progress' && (
                   <>
                     <button
-                      onClick={() => {
-                        setSelectedTask(task);
-                        setShowScanModal(true);
-                      }}
-                      className="btn btn-primary flex items-center gap-2 flex-1"
+                      onClick={() => openScanModal(task)}
+                      className="btn btn-primary flex items-center gap-2 flex-1 min-w-[120px]"
                     >
-                      <QrCode className="w-4 h-4" />
+                      <QrCode className="w-4 h-4 flex-shrink-0" />
                       扫码登记
                     </button>
-                    <button
-                      onClick={() => setSelectedTask(task)}
-                      className="btn btn-outline flex items-center gap-2"
-                    >
-                      <CheckCircle className="w-4 h-4" />
-                      提交
-                    </button>
+                    {task.progress >= 100 && (
+                      <button
+                        onClick={() => updateTaskStatus(task.id, 'completed', 100)}
+                        className="btn btn-outline flex items-center gap-2"
+                      >
+                        <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                        提交完成
+                      </button>
+                    )}
                   </>
                 )}
                 {task.status === 'completed' && (
                   <span className="flex items-center gap-2 text-success-600 font-medium flex-1 justify-center">
-                    <CheckCircle className="w-5 h-5" />
+                    <CheckCircle className="w-5 h-5 flex-shrink-0" />
                     已完成
                   </span>
                 )}
                 {task.defectsCount && task.defectsCount > 0 && (
                   <span className="flex items-center gap-1 text-danger-600 text-sm">
-                    <AlertTriangle className="w-4 h-4" />
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0" />
                     {task.defectsCount} 个缺陷
                   </span>
                 )}
@@ -220,10 +318,17 @@ export default function Tasks() {
         })}
       </div>
 
+      {filteredTasks.length === 0 && (
+        <div className="text-center py-16">
+          <ClipboardList className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+          <p className="text-gray-500">暂无任务</p>
+        </div>
+      )}
+
       {showScanModal && selectedTask && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl w-full max-w-lg mx-4">
-            <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
               <h3 className="font-semibold text-gray-900">扫码登记设备</h3>
               <button
                 onClick={() => setShowScanModal(false)}
@@ -232,86 +337,99 @@ export default function Tasks() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-5">
-              <div className="aspect-square bg-gray-900 rounded-xl flex items-center justify-center mb-4">
+            <div className="p-5 space-y-5">
+              <div className="aspect-video bg-gray-900 rounded-xl flex items-center justify-center">
                 <div className="text-center text-white">
-                  <QrCode className="w-24 h-24 mx-auto mb-3 opacity-50" />
+                  <QrCode className="w-20 h-20 mx-auto mb-3 opacity-50" />
                   <p className="text-sm opacity-70">将二维码扫描区域对准设备二维码</p>
+                  <p className="text-xs opacity-50 mt-1">或手动选择下方设备</p>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    设备编号
-                  </label>
-                  <select className="w-full h-10 px-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-300">
-                    <option value="">选择或手动选择设备</option>
-                    {devices.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.code} - {d.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  选择设备 <span className="text-danger-500">*</span>
+                </label>
+                <select
+                  value={scanForm.deviceId}
+                  onChange={(e) => setScanForm((prev) => ({ ...prev, deviceId: e.target.value }))}
+                  className="w-full h-10 px-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-300"
+                >
+                  <option value="">请选择设备</option>
+                  {devices.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.code} - {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    现场照片
-                  </label>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {photos.map((_, index) => (
-                      <div key={index} className="relative w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center">
-                        <Camera className="w-8 h-8 text-gray-400" />
-                        <button
-                          onClick={() => removePhoto(index)}
-                          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-danger-500 text-white rounded-full flex items-center justify-center"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
-                    <label className="w-20 h-20 border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-primary-300 hover:bg-primary-50 transition-colors">
-                      <Upload className="w-6 h-6 text-gray-400" />
-                      <span className="text-xs text-gray-500 mt-1">上传照片</span>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  检查项目
+                </label>
+                <div className="space-y-2">
+                  {defaultCheckItems.map((item, i) => (
+                    <label
+                      key={i}
+                      className="flex items-center gap-3 p-3 border border-gray-100 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                    >
                       <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        className="hidden"
-                        onChange={handlePhotoUpload}
+                        type="checkbox"
+                        checked={scanForm.checkItems.includes(item)}
+                        onChange={() => toggleCheckItem(item)}
+                        className="w-4 h-4 text-primary-600 rounded"
                       />
+                      <span className="text-sm text-gray-700">{item}</span>
                     </label>
-                  </div>
+                  ))}
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    检查结果
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  现场照片
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {scanForm.photos.map((_, index) => (
+                    <div key={index} className="relative w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <Camera className="w-8 h-8 text-gray-400" />
+                      <button
+                        onClick={() => removePhoto(index)}
+                        className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-danger-500 text-white rounded-full flex items-center justify-center"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                  <label className="w-20 h-20 border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-primary-300 hover:bg-primary-50 transition-colors">
+                    <Plus className="w-6 h-6 text-gray-400" />
+                    <span className="text-xs text-gray-500 mt-1">添加照片</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={handlePhotoUpload}
+                    />
                   </label>
-                  <div className="space-y-2">
-                    {['外观完好', '功能正常', '清洁无锈蚀'].map((item, i) => (
-                      <div key={i} className="flex items-center gap-3 p-2 border border-gray-100 rounded-lg">
-                        <input type="checkbox" defaultChecked className="w-4 h-4 text-primary-600 rounded" />
-                        <span className="text-sm text-gray-700">{item}</span>
-                      </div>
-                    ))}
-                  </div>
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    备注
-                  </label>
-                  <textarea
-                    rows={3}
-                    placeholder="输入检查备注..."
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-300 resize-none"
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  备注
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="输入检查备注..."
+                  value={scanForm.note}
+                  onChange={(e) => setScanForm((prev) => ({ ...prev, note: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-300 resize-none"
+                />
               </div>
             </div>
-            <div className="p-5 border-t border-gray-100 flex gap-3">
+            <div className="p-5 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
               <button
                 onClick={() => setShowScanModal(false)}
                 className="btn btn-outline flex-1"
@@ -319,9 +437,11 @@ export default function Tasks() {
                 取消
               </button>
               <button
-                onClick={() => setShowScanModal(false)}
-                className="btn btn-primary flex-1"
+                onClick={handleSubmitScan}
+                disabled={!scanForm.deviceId}
+                className="btn btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
+                <Save className="w-4 h-4" />
                 确认登记
               </button>
             </div>
@@ -329,5 +449,26 @@ export default function Tasks() {
         </div>
       )}
     </div>
+  );
+}
+
+function ClipboardList(props: { className?: string }) {
+  return (
+    <svg
+      {...props}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect width="8" height="4" x="8" y="2" rx="1" ry="1" />
+      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+      <path d="M12 11h4" />
+      <path d="M12 16h4" />
+      <path d="M8 11h.01" />
+      <path d="M8 16h.01" />
+    </svg>
   );
 }
