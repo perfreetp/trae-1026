@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   AlertTriangle,
   Search,
@@ -24,7 +24,7 @@ interface NewDefectForm {
 }
 
 export default function Defects() {
-  const { defects, devices, users, updateDefectStatus, currentUser, addDefect, isOnline, saveOfflineData } = useStore();
+  const { defects, devices, users, updateDefectStatus, currentUser, addDefect, isOnline, saveOfflineData, openDefectDetailId, setOpenDefectDetailId } = useStore();
   const [levelFilter, setLevelFilter] = useState<DefectLevel | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<DefectStatus | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -33,6 +33,16 @@ export default function Defects() {
   const [showRectifyModal, setShowRectifyModal] = useState(false);
   const [showRecheckModal, setShowRecheckModal] = useState(false);
   const [showNewModal, setShowNewModal] = useState(false);
+
+  useEffect(() => {
+    if (openDefectDetailId) {
+      const defect = defects.find((d) => d.id === openDefectDetailId);
+      if (defect) {
+        setShowDetail(defect);
+      }
+      setOpenDefectDetailId(null);
+    }
+  }, [openDefectDetailId, defects, setOpenDefectDetailId]);
 
   const [assignAssignee, setAssignAssignee] = useState('');
   const [assignDeadline, setAssignDeadline] = useState('');
@@ -208,6 +218,8 @@ export default function Defects() {
       reporterId: currentUser.id,
       reporterName: currentUser.name,
       photos: newDefect.photos,
+      status: 'reported' as const,
+      taskId: '',
     };
 
     if (isOnline) {

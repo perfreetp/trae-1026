@@ -12,6 +12,8 @@ import {
   X,
   Check,
   AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import type { InspectionPlan } from '../../types';
@@ -25,6 +27,10 @@ export default function Plans() {
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [selectedPlan, setSelectedPlan] = useState<InspectionPlan | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
 
   const [formData, setFormData] = useState({
     name: '',
@@ -133,17 +139,68 @@ export default function Plans() {
   }, [plans, searchQuery]);
 
   const calendarEvents = useMemo(() => {
-    const events: Record<number, InspectionPlan[]> = {};
+    const events: Record<string, InspectionPlan[]> = {};
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+
     filteredPlans.forEach((plan) => {
-      const start = new Date(plan.startDate).getDate();
-      const end = new Date(plan.endDate).getDate();
-      for (let day = start; day <= end; day++) {
-        if (!events[day]) events[day] = [];
-        events[day].push(plan);
+      const start = new Date(plan.startDate);
+      const end = new Date(plan.endDate);
+      const current = new Date(start);
+
+      while (current <= end) {
+        if (current.getFullYear() === year && current.getMonth() === month) {
+          const dateStr = current.toISOString().split('T')[0];
+          if (!events[dateStr]) events[dateStr] = [];
+          events[dateStr].push(plan);
+        }
+        current.setDate(current.getDate() + 1);
       }
     });
     return events;
-  }, [filteredPlans]);
+  }, [filteredPlans, currentMonth]);
+
+  const calendarDays = useMemo(() => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startWeekDay = firstDay.getDay();
+    const days: (Date | null)[] = [];
+
+    for (let i = 0; i < startWeekDay; i++) {
+      days.push(null);
+    }
+
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push(new Date(year, month, i));
+    }
+
+    while (days.length % 7 !== 0) {
+      days.push(null);
+    }
+
+    return days;
+  }, [currentMonth]);
+
+  const isToday = (date: Date | null) => {
+    if (!date) return false;
+    const today = new Date();
+    return date.toDateString() === today.toDateString();
+  };
+
+  const goToPrevMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+  };
+
+  const goToNextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+  };
+
+  const getMonthLabel = () => {
+    return `${currentMonth.getFullYear()}年${currentMonth.getMonth() + 1}月`;
+  };
 
   const getTaskCount = (planId: string) => {
     return tasks.filter((t) => t.planId === planId).length;
@@ -337,35 +394,57 @@ export default function Plans() {
             </table>
           </div>
         ) : (
-          <div className="p-4 sm:p-8">
+          <div className="p-4 sm:p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={goToPrevMonth}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <ChevronLeft className="w-5 h-5 text-gray-600" />
+                </button>
+                <h3 className="text-lg font-semibold text-gray-900 min-w-[140px] text-center">
+                  {getMonthLabel()}
+                </h3>
+                <button
+                  onClick={goToNextMonth}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <ChevronRight className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+            </div>
             <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-sm">
               {['日', '一', '二', '三', '四', '五', '六'].map((day) => (
                 <div key={day} className="py-2 font-medium text-gray-500 text-xs">{day}</div>
               ))}
-              {Array.from({ length: 35 }, (_, i) => {
-                const day = i - 3;
-                const dayEvents = day >= 1 && day <= 30 ? calendarEvents[day] || [] : [];
-                const isToday = day === 6;
+              {calendarDays.map((date, i) => {
+                const dateStr = date ? date.toISOString().split('T')[0] : '';
+                const dayEvents = date ? calendarEvents[dateStr] || [] : [];
+                const today = isToday(date);
                 return (
                   <div
                     key={i}
-                    className={`min-h-[60px] sm:h-20 p-1 rounded-lg border text-left ${
-                      day >= 1 && day <= 30
-                        ? `bg-white border-gray-100 hover:border-primary-200 cursor-pointer ${isToday ? 'ring-2 ring-primary-300' : ''}`
+                    className={`min-h-[70px] sm:h-24 p-1 rounded-lg border text-left ${
+                      date
+                        ? `bg-white border-gray-100 hover:border-primary-200 cursor-pointer ${today ? 'ring-2 ring-primary-300' : ''}`
                         : 'bg-gray-50 border-gray-50'
                     }`}
                   >
-                    {day >= 1 && day <= 30 && (
+                    {date && (
                       <>
-                        <div className={`text-xs ${isToday ? 'text-primary-600 font-semibold' : 'text-gray-500'}`}>{day}</div>
-                        <div className="mt-0.5 space-y-0.5">
+                        <div className={`text-xs ${today ? 'text-primary-600 font-semibold' : 'text-gray-500'}`}>
+                          {date.getDate()}
+                        </div>
+                        <div className="mt-0.5 space-y-0.5 overflow-hidden">
                           {dayEvents.slice(0, 2).map((plan) => (
                             <div
                               key={plan.id}
-                              onClick={() => openViewModal(plan)}
+                              onClick={(e) => { e.stopPropagation(); openViewModal(plan); }}
                               className="text-xs bg-primary-100 text-primary-700 rounded px-1 py-0.5 truncate hover:bg-primary-200"
+                              title={plan.name}
                             >
-                              {getTypeLabel(plan.type)}
+                              {plan.name.length > 6 ? plan.name.substring(0, 6) + '...' : plan.name}
                             </div>
                           ))}
                           {dayEvents.length > 2 && (

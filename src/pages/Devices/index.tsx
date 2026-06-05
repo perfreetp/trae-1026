@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Server,
   Search,
@@ -17,12 +17,22 @@ import { useStore } from '../../store/useStore';
 import type { Device } from '../../types';
 
 export default function Devices() {
-  const { devices, maintenanceRecords, inspectionRecords } = useStore();
+  const { devices, maintenanceRecords, inspectionRecords, spareParts, openDeviceDetailId, setOpenDeviceDetailId } = useStore();
   const [category, setCategory] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'inspection' | 'maintenance'>('info');
+
+  useEffect(() => {
+    if (openDeviceDetailId) {
+      const device = devices.find((d) => d.id === openDeviceDetailId);
+      if (device) {
+        setSelectedDevice(device);
+      }
+      setOpenDeviceDetailId(null);
+    }
+  }, [openDeviceDetailId, devices, setOpenDeviceDetailId]);
 
   const categories = [
     { value: 'all', label: '全部' },
@@ -92,6 +102,11 @@ export default function Devices() {
       communication: '通信设备',
     };
     return map[category] || category;
+  };
+
+  const getPartName = (partId: string) => {
+    const part = spareParts.find((p) => p.id === partId);
+    return part ? part.name : partId;
   };
 
   return (
@@ -323,6 +338,18 @@ export default function Devices() {
                           <p className="text-xs text-gray-600 mt-1">
                             <span className="text-gray-500">处理结果：</span>{record.result}
                           </p>
+                        )}
+                        {record.parts && record.parts.length > 0 && (
+                          <div className="mt-2">
+                            <p className="text-xs text-gray-500 mb-1">关联备件：</p>
+                            <div className="flex flex-wrap gap-1">
+                              {record.parts.map((part, i) => (
+                                <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                                  {getPartName(part)}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
                         )}
                       </div>
                     ))

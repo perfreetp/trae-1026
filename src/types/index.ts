@@ -1,7 +1,7 @@
 export interface User {
   id: string;
   name: string;
-  role: 'inspector' | 'leader' | 'admin';
+  role: 'inspector' | 'leader' | 'admin' | 'technician';
   team: string;
   phone?: string;
 }
@@ -55,13 +55,17 @@ export interface InspectionTask {
 export interface InspectionRecord {
   id: string;
   taskId: string;
-  checkpointId: string;
+  taskName: string;
   deviceId: string;
+  deviceName: string;
+  deviceCode?: string;
+  inspectorId: string;
+  inspectorName: string;
   checkedAt: string;
-  checkerId: string;
-  items: InspectionItem[];
+  checkItems: string[];
+  note?: string;
   photos: string[];
-  remarks?: string;
+  status: 'normal' | 'abnormal';
 }
 
 export interface InspectionItem {
@@ -83,18 +87,23 @@ export interface Device {
   status: 'normal' | 'warning' | 'fault';
   lastInspectionDate?: string;
   nextInspectionDate?: string;
+  nextMaintenance?: string;
   manufacturer?: string;
   model?: string;
+  description?: string;
 }
 
 export interface MaintenanceRecord {
   id: string;
   deviceId: string;
-  type: 'repair' | 'maintenance' | 'replacement';
+  type: string;
   date: string;
   description: string;
   parts?: string[];
   operatorId: string;
+  technician: string;
+  status: 'completed' | 'in_progress';
+  result?: string;
   cost?: number;
 }
 
@@ -105,19 +114,28 @@ export interface Defect {
   id: string;
   taskId: string;
   deviceId: string;
+  deviceName: string;
+  deviceCode?: string;
   title: string;
   description: string;
   level: DefectLevel;
   status: DefectStatus;
   photos: string[];
   reporterId: string;
+  reporterName: string;
   assigneeId?: string;
+  assigneeName?: string;
   deadline?: string;
   createdAt: string;
   rectificationDesc?: string;
   rectificationPhotos?: string[];
+  rectifierId?: string;
+  rectifierName?: string;
+  rectifiedAt?: string;
   recheckResult?: string;
   recheckerId?: string;
+  recheckerName?: string;
+  recheckedAt?: string;
   closedAt?: string;
 }
 
@@ -150,6 +168,7 @@ export interface SparePartRequest {
 }
 
 export interface TeamPerformance {
+  id: string;
   teamId: string;
   teamName: string;
   tasksCompleted: number;
@@ -159,6 +178,10 @@ export interface TeamPerformance {
   defectsTotal: number;
   rectificationRate: number;
   avgCompletionTime: number;
+  defectClosureRate?: number;
+  overdueTasks?: number;
+  score?: number;
+  grade?: string;
 }
 
 export interface TrendData {

@@ -9,6 +9,7 @@ import {
   Clock,
   User,
   XCircle,
+  Eye,
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import type { SparePartRequest } from '../../types';
@@ -23,6 +24,17 @@ export default function SpareParts() {
   const [reason, setReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [showDetailModal, setShowDetailModal] = useState<SparePartRequest | null>(null);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const selectedPartInfo = useMemo(() => {
+    return spareParts.find((p) => p.id === selectedPart);
+  }, [selectedPart, spareParts]);
+
+  const quantityExceedsStock = useMemo(() => {
+    if (!selectedPartInfo) return false;
+    return quantity > selectedPartInfo.stock;
+  }, [quantity, selectedPartInfo]);
 
   const filteredParts = useMemo(() => {
     if (!searchQuery) return spareParts;
@@ -58,9 +70,13 @@ export default function SpareParts() {
   };
 
   const handleSubmitRequest = () => {
-    if (!selectedPart || quantity <= 0 || !reason) return;
+    if (!selectedPart || quantity <= 0 || !reason.trim()) return;
     const part = spareParts.find((p) => p.id === selectedPart);
     if (!part) return;
+    if (quantity > part.stock) {
+      setErrorMessage(`库存不足，当前库存：${part.stock} ${part.unit}`);
+      return;
+    }
 
     addSparePartRequest({
       partId: selectedPart,
@@ -68,23 +84,33 @@ export default function SpareParts() {
       quantity,
       applicantId: currentUser.id,
       applicantName: currentUser.name,
-      reason,
+      reason: reason.trim(),
     });
 
     setShowRequestModal(false);
     setSelectedPart('');
     setQuantity(1);
     setReason('');
+    setErrorMessage('');
   };
 
   const handleApprove = (requestId: string) => {
-    approveSparePartRequest(requestId, currentUser.id, currentUser.name);
+    const result = approveSparePartRequest(requestId, currentUser.id, currentUser.name);
+    if (result && !result.success) {
+      setErrorMessage(result.error || '审批失败');
+      setTimeout(() => setErrorMessage(''), 3000);
+    }
   };
 
   const handleReject = (requestId: string) => {
-    rejectSparePartRequest(requestId, currentUser.id, currentUser.name, rejectReason);
+    if (!rejectReason.trim()) {
+      setErrorMessage('请填写驳回原因');
+      return;
+    }
+    rejectSparePartRequest(requestId, currentUser.id, currentUser.name, rejectReason.trim());
     setShowRejectModal(null);
     setRejectReason('');
+    setErrorMessage('');
   };
 
   const lowStockCount = spareParts.filter((p) => p.stock <= p.minStock).length;
@@ -196,18 +222,23 @@ export default function SpareParts() {
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
+            {errorMessage && (
+              <div className="p-3 bg-danger-50 text-danger-600 text-sm text-center">
+                {errorMessage}
+              </div>
+            )}
             {sparePartRequests.map((request) => (
               <div key={request.id} className="p-4 hover:bg-gray-50 transition-colors">
                 <div className="flex items-start justify-between">
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <h4 className="font-medium text-gray-900">{request.partName}</h4>
+                      <h4 className="font-medium text-gray-900 truncate">{request.partName}</h4>
                       {getRequestStatusBadge(request.status)}
                     </div>
                     <p className="text-sm text-gray-500">
                       申请数量：{request.quantity} 件 · 申请原因：{request.reason}
                     </p>
-                    <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
+                    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
                       <span className="flex items-center gap-1">
                         <User className="w-3.5 h-3.5" />
                         {request.applicantName}
@@ -219,29 +250,41 @@ export default function SpareParts() {
                       {request.approverName && (
                         <span>审批人：{request.approverName}</span>
                       )}
+                      {request.approvedAt && (
+                        <span>审批时间：{request.approvedAt}</span>
+                      )}
                       {request.rejectReason && (
                         <span className="text-danger-600">驳回原因：{request.rejectReason}</span>
                       )}
                     </div>
                   </div>
-                  {request.status === 'pending' && currentUser.role !== 'inspector' && (
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleApprove(request.id)}
-                        className="px-3 py-1.5 bg-success-50 text-success-700 rounded-lg text-sm font-medium hover:bg-success-100 transition-colors flex items-center gap-1"
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                        通过
-                      </button>
-                      <button
-                        onClick={() => setShowRejectModal(request.id)}
-                        className="px-3 py-1.5 bg-danger-50 text-danger-700 rounded-lg text-sm font-medium hover:bg-danger-100 transition-colors flex items-center gap-1"
-                      >
-                        <XCircle className="w-4 h-4" />
-                        驳回
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                    <button
+                      onClick={() => setShowDetailModal(request)}
+                      className="p-1.5 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100"
+                      title="查看详情"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
+                    {request.status === 'pending' && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleApprove(request.id)}
+                          className="px-3 py-1.5 bg-success-50 text-success-700 rounded-lg text-sm font-medium hover:bg-success-100 transition-colors flex items-center gap-1"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          通过
+                        </button>
+                        <button
+                          onClick={() => { setShowRejectModal(request.id); setErrorMessage(''); }}
+                          className="px-3 py-1.5 bg-danger-50 text-danger-700 rounded-lg text-sm font-medium hover:bg-danger-100 transition-colors flex items-center gap-1"
+                        >
+                          <XCircle className="w-4 h-4" />
+                          驳回
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -250,23 +293,28 @@ export default function SpareParts() {
       </div>
 
       {showRequestModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl w-full max-w-md mx-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md">
             <div className="p-5 border-b border-gray-100 flex items-center justify-between">
               <h3 className="font-semibold text-gray-900">领用申请</h3>
               <button
-                onClick={() => setShowRequestModal(false)}
+                onClick={() => { setShowRequestModal(false); setErrorMessage(''); }}
                 className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-5 space-y-4">
+              {errorMessage && (
+                <div className="p-3 bg-danger-50 text-danger-600 rounded-lg text-sm">
+                  {errorMessage}
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">选择备件</label>
                 <select
                   value={selectedPart}
-                  onChange={(e) => setSelectedPart(e.target.value)}
+                  onChange={(e) => { setSelectedPart(e.target.value); setErrorMessage(''); }}
                   className="w-full h-10 px-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-100"
                 >
                   <option value="">请选择备件</option>
@@ -283,9 +331,19 @@ export default function SpareParts() {
                   type="number"
                   min="1"
                   value={quantity}
-                  onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
-                  className="w-full h-10 px-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-100"
+                  onChange={(e) => { setQuantity(parseInt(e.target.value) || 1); setErrorMessage(''); }}
+                  className={`w-full h-10 px-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 ${
+                    quantityExceedsStock ? 'border-danger-300 focus:ring-danger-100' : 'border-gray-200'
+                  }`}
                 />
+                {selectedPartInfo && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    当前库存：{selectedPartInfo.stock} {selectedPartInfo.unit}
+                  </p>
+                )}
+                {quantityExceedsStock && (
+                  <p className="text-xs text-danger-600 mt-1">申请数量超过库存！</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">申请原因</label>
@@ -299,10 +357,14 @@ export default function SpareParts() {
               </div>
             </div>
             <div className="p-5 border-t border-gray-100 flex gap-3">
-              <button onClick={() => setShowRequestModal(false)} className="btn btn-outline flex-1">
+              <button onClick={() => { setShowRequestModal(false); setErrorMessage(''); }} className="btn btn-outline flex-1">
                 取消
               </button>
-              <button onClick={handleSubmitRequest} className="btn btn-primary flex-1">
+              <button
+                onClick={handleSubmitRequest}
+                disabled={!selectedPart || quantity <= 0 || !reason.trim() || quantityExceedsStock}
+                className="btn btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 提交申请
               </button>
             </div>
@@ -311,12 +373,23 @@ export default function SpareParts() {
       )}
 
       {showRejectModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl w-full max-w-md mx-4">
-            <div className="p-5 border-b border-gray-100">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md">
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between">
               <h3 className="font-semibold text-gray-900">驳回申请</h3>
+              <button
+                onClick={() => { setShowRejectModal(null); setErrorMessage(''); }}
+                className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
             <div className="p-5">
+              {errorMessage && (
+                <div className="p-3 bg-danger-50 text-danger-600 rounded-lg text-sm mb-4">
+                  {errorMessage}
+                </div>
+              )}
               <label className="block text-sm font-medium text-gray-700 mb-2">驳回原因</label>
               <textarea
                 rows={3}
@@ -327,12 +400,100 @@ export default function SpareParts() {
               />
             </div>
             <div className="p-5 border-t border-gray-100 flex gap-3">
-              <button onClick={() => setShowRejectModal(null)} className="btn btn-outline flex-1">
+              <button onClick={() => { setShowRejectModal(null); setErrorMessage(''); }} className="btn btn-outline flex-1">
                 取消
               </button>
               <button onClick={() => handleReject(showRejectModal)} className="btn btn-primary flex-1">
                 确认驳回
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDetailModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md">
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">申请详情</h3>
+              <button
+                onClick={() => setShowDetailModal(null)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <p className="text-lg font-semibold text-gray-900">{showDetailModal.partName}</p>
+                <div className="mt-1">{getRequestStatusBadge(showDetailModal.status)}</div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-gray-500 text-xs">申请数量</p>
+                  <p className="font-medium text-gray-900">{showDetailModal.quantity} 件</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">申请人</p>
+                  <p className="font-medium text-gray-900">{showDetailModal.applicantName}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">申请时间</p>
+                  <p className="font-medium text-gray-900">{showDetailModal.createdAt}</p>
+                </div>
+                {showDetailModal.approverName && (
+                  <div>
+                    <p className="text-gray-500 text-xs">审批人</p>
+                    <p className="font-medium text-gray-900">{showDetailModal.approverName}</p>
+                  </div>
+                )}
+                {showDetailModal.approvedAt && (
+                  <div>
+                    <p className="text-gray-500 text-xs">审批时间</p>
+                    <p className="font-medium text-gray-900">{showDetailModal.approvedAt}</p>
+                  </div>
+                )}
+              </div>
+              <div>
+                <p className="text-gray-500 text-xs mb-1">申请原因</p>
+                <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded-lg">{showDetailModal.reason}</p>
+              </div>
+              {showDetailModal.rejectReason && (
+                <div>
+                  <p className="text-danger-500 text-xs mb-1">驳回原因</p>
+                  <p className="text-sm text-danger-700 bg-danger-50 p-3 rounded-lg">{showDetailModal.rejectReason}</p>
+                </div>
+              )}
+            </div>
+            <div className="p-5 border-t border-gray-100 flex gap-3">
+              {showDetailModal.status === 'pending' ? (
+                <>
+                  <button
+                    onClick={() => {
+                      handleApprove(showDetailModal.id);
+                      setShowDetailModal(null);
+                    }}
+                    className="btn btn-primary flex-1 flex items-center justify-center gap-1"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    通过
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowRejectModal(showDetailModal.id);
+                      setShowDetailModal(null);
+                    }}
+                    className="btn btn-outline flex-1 flex items-center justify-center gap-1 text-danger-600 border-danger-200 hover:bg-danger-50"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    驳回
+                  </button>
+                </>
+              ) : (
+                <button onClick={() => setShowDetailModal(null)} className="btn btn-outline w-full">
+                  关闭
+                </button>
+              )}
             </div>
           </div>
         </div>

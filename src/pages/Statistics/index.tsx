@@ -12,17 +12,17 @@ import {
 import { useStore } from '../../store/useStore';
 
 export default function Statistics() {
-  const { defects, inspectionTasks, inspectionPlans, teamPerformances, devices } = useStore();
+  const { defects, tasks, plans, teamPerformances, devices } = useStore();
   const [timeRange, setTimeRange] = useState<'month' | 'quarter' | 'year'>('month');
 
   const stats = useMemo(() => {
-    const totalTasks = inspectionTasks.length;
-    const completedTasks = inspectionTasks.filter((t) => t.status === 'completed').length;
+    const totalTasks = tasks.length;
+    const completedTasks = tasks.filter((t) => t.status === 'completed').length;
     const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-    const pendingDefects = defects.filter((d) => d.status === 'pending').length;
+    const pendingDefects = defects.filter((d) => d.status === 'reported').length;
     const fixedDefects = defects.filter((d) => d.status === 'closed').length;
     return { totalTasks, completedTasks, completionRate, pendingDefects, fixedDefects };
-  }, [inspectionTasks, defects]);
+  }, [tasks, defects]);
 
   const taskTrendOption = {
     tooltip: { trigger: 'axis' },
@@ -72,7 +72,7 @@ export default function Statistics() {
         data: [
           { value: defects.filter((d) => d.level === 'critical').length, name: '重大', itemStyle: { color: '#dc2626' } },
           { value: defects.filter((d) => d.level === 'major').length, name: '较大', itemStyle: { color: '#f97316' } },
-          { value: defects.filter((d) => d.level === 'general').length, name: '一般', itemStyle: { color: '#eab308' } },
+          { value: defects.filter((d) => d.level === 'minor').length, name: '一般', itemStyle: { color: '#eab308' } },
         ],
       },
     ],

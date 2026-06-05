@@ -60,11 +60,15 @@ interface AppState {
   trendData: TrendData[];
   selectedDevice: Device | null;
   selectedDefect: Defect | null;
+  openDeviceDetailId: string | null;
+  openDefectDetailId: string | null;
   offlineData: Record<string, unknown>[];
   isOnline: boolean;
 
   setSelectedDevice: (device: Device | null) => void;
   setSelectedDefect: (defect: Defect | null) => void;
+  setOpenDeviceDetailId: (id: string | null) => void;
+  setOpenDefectDetailId: (id: string | null) => void;
   addPlan: (plan: Omit<InspectionPlan, 'id' | 'createdAt'>) => void;
   updatePlan: (planId: string, updates: Partial<InspectionPlan>) => void;
   deletePlan: (planId: string) => void;
@@ -74,7 +78,7 @@ interface AppState {
   updateDefectStatus: (defectId: string, status: Defect['status'], updates?: Partial<Defect>) => void;
   addInspectionRecord: (record: Omit<InspectionRecord, 'id' | 'checkedAt'>) => void;
   addSparePartRequest: (request: Omit<SparePartRequest, 'id' | 'createdAt' | 'status'>) => void;
-  approveSparePartRequest: (requestId: string, approverId: string, approverName: string) => void;
+  approveSparePartRequest: (requestId: string, approverId: string, approverName: string) => { success: boolean; error?: string };
   rejectSparePartRequest: (requestId: string, approverId: string, approverName: string, reason: string) => void;
   setOnlineStatus: (isOnline: boolean) => void;
   saveOfflineData: (data: Record<string, unknown>) => void;
@@ -98,6 +102,8 @@ export const useStore = create<AppState>((set, get) => ({
   trendData: generateTrendData(30),
   selectedDevice: null,
   selectedDefect: null,
+  openDeviceDetailId: null,
+  openDefectDetailId: null,
   offlineData: loadFromStorage('offlineData', []),
   isOnline: loadFromStorage('isOnline', true),
 
@@ -116,6 +122,8 @@ export const useStore = create<AppState>((set, get) => ({
 
   setSelectedDevice: (device) => set({ selectedDevice: device }),
   setSelectedDefect: (defect) => set({ selectedDefect: defect }),
+  setOpenDeviceDetailId: (id) => set({ openDeviceDetailId: id }),
+  setOpenDefectDetailId: (id) => set({ openDefectDetailId: id }),
 
   addPlan: (plan) =>
     set((state) => {
@@ -224,14 +232,21 @@ export const useStore = create<AppState>((set, get) => ({
       return { sparePartRequests: newRequests };
     }),
 
-  approveSparePartRequest: (requestId, approverId, approverName) =>
-    set((state) => {
-      const request = state.sparePartRequests.find((r) => r.id === requestId);
-      if (!request) return state;
+  approveSparePartRequest: (requestId: string, approverId: string, approverName: string): { success: boolean; error?: string } => {
+    const state = get();
+    const request = state.sparePartRequests.find((r) => r.id === requestId);
+    if (!request) return { success: false, error: '申请不存在' };
 
+    const part = state.spareParts.find((p) => p.id === request.partId);
+    if (!part) return { success: false, error: '备件不存在' };
+    if (part.stock < request.quantity) {
+      return { success: false, error: `库存不足，当前库存：${part.stock}，申请数量：${request.quantity}` };
+    }
+
+    set((state) => {
       const newRequests = state.sparePartRequests.map((r) =>
         r.id === requestId
-          ? { ...r, status: 'approved', approverId, approverName, approvedAt: new Date().toLocaleString() }
+          ? { ...r, status: 'approved' as const, approverId, approverName, approvedAt: new Date().toLocaleString() }
           : r
       );
       const newParts = state.spareParts.map((p) =>
@@ -240,13 +255,15 @@ export const useStore = create<AppState>((set, get) => ({
       saveToStorage('sparePartRequests', newRequests);
       saveToStorage('spareParts', newParts);
       return { sparePartRequests: newRequests, spareParts: newParts };
-    }),
+    });
+    return { success: true };
+  },
 
-  rejectSparePartRequest: (requestId, approverId, approverName, reason) =>
+  rejectSparePartRequest: (requestId: string, approverId: string, approverName: string, reason: string) =>
     set((state) => {
       const newRequests = state.sparePartRequests.map((r) =>
         r.id === requestId
-          ? { ...r, status: 'rejected', approverId, approverName, rejectReason: reason }
+          ? { ...r, status: 'rejected' as const, approverId, approverName, rejectReason: reason }
           : r
       );
       saveToStorage('sparePartRequests', newRequests);
