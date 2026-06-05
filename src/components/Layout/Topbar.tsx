@@ -13,7 +13,7 @@ interface SearchResult {
 
 export default function Topbar() {
   const navigate = useNavigate();
-  const { isOnline, offlineData, devices, tasks, defects, setOnlineStatus, syncOfflineData, setOpenDeviceDetailId, setOpenDefectDetailId } = useStore();
+  const { isOnline, offlineData, devices, tasks, defects, setOnlineStatus, syncOfflineData, setOpenDeviceDetailId, setOpenDefectDetailId, setOpenTaskDetailId } = useStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -83,6 +83,8 @@ export default function Topbar() {
       setOpenDeviceDetailId(result.id);
     } else if (result.type === 'defect') {
       setOpenDefectDetailId(result.id);
+    } else if (result.type === 'task') {
+      setOpenTaskDetailId(result.id);
     }
     navigate(result.url);
     setShowSearchResults(false);

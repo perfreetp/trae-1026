@@ -266,7 +266,7 @@ export default function SpareParts() {
                     >
                       <Eye className="w-4 h-4" />
                     </button>
-                    {request.status === 'pending' && (
+                    {request.status === 'pending' && (currentUser.role === 'leader' || currentUser.role === 'admin') && (
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleApprove(request.id)}
@@ -466,7 +466,7 @@ export default function SpareParts() {
               )}
             </div>
             <div className="p-5 border-t border-gray-100 flex gap-3">
-              {showDetailModal.status === 'pending' ? (
+              {showDetailModal.status === 'pending' && (currentUser.role === 'leader' || currentUser.role === 'admin') ? (
                 <>
                   <button
                     onClick={() => {

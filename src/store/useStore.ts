@@ -62,6 +62,7 @@ interface AppState {
   selectedDefect: Defect | null;
   openDeviceDetailId: string | null;
   openDefectDetailId: string | null;
+  openTaskDetailId: string | null;
   offlineData: Record<string, unknown>[];
   isOnline: boolean;
 
@@ -69,6 +70,7 @@ interface AppState {
   setSelectedDefect: (defect: Defect | null) => void;
   setOpenDeviceDetailId: (id: string | null) => void;
   setOpenDefectDetailId: (id: string | null) => void;
+  setOpenTaskDetailId: (id: string | null) => void;
   addPlan: (plan: Omit<InspectionPlan, 'id' | 'createdAt'>) => void;
   updatePlan: (planId: string, updates: Partial<InspectionPlan>) => void;
   deletePlan: (planId: string) => void;
@@ -104,6 +106,7 @@ export const useStore = create<AppState>((set, get) => ({
   selectedDefect: null,
   openDeviceDetailId: null,
   openDefectDetailId: null,
+  openTaskDetailId: null,
   offlineData: loadFromStorage('offlineData', []),
   isOnline: loadFromStorage('isOnline', true),
 
@@ -124,6 +127,7 @@ export const useStore = create<AppState>((set, get) => ({
   setSelectedDefect: (defect) => set({ selectedDefect: defect }),
   setOpenDeviceDetailId: (id) => set({ openDeviceDetailId: id }),
   setOpenDefectDetailId: (id) => set({ openDefectDetailId: id }),
+  setOpenTaskDetailId: (id) => set({ openTaskDetailId: id }),
 
   addPlan: (plan) =>
     set((state) => {

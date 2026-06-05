@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   QrCode,
   Camera,
@@ -12,6 +12,9 @@ import {
   AlertTriangle,
   Plus,
   Save,
+  ClipboardList,
+  User,
+  Calendar,
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import type { InspectionTask, Device } from '../../types';
@@ -42,10 +45,14 @@ export default function Tasks() {
     addInspectionRecord,
     isOnline,
     saveOfflineData,
+    openTaskDetailId,
+    setOpenTaskDetailId,
   } = useStore();
 
   const [showScanModal, setShowScanModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState<InspectionTask | null>(null);
+  const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [scanForm, setScanForm] = useState<ScanForm>({
@@ -54,6 +61,25 @@ export default function Tasks() {
     note: '',
     photos: [],
   });
+  const taskRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  useEffect(() => {
+    if (openTaskDetailId) {
+      const task = tasks.find((t) => t.id === openTaskDetailId);
+      if (task) {
+        setSelectedTask(task);
+        setShowDetailModal(true);
+        setHighlightedTaskId(openTaskDetailId);
+        setTimeout(() => {
+          const element = taskRefs.current[openTaskDetailId];
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 100);
+      }
+      setOpenTaskDetailId(null);
+    }
+  }, [openTaskDetailId, tasks, setOpenTaskDetailId]);
 
   const myTasks = useMemo(() => {
     return tasks.filter((t) => t.assigneeId === currentUser.id);
@@ -234,8 +260,19 @@ export default function Tasks() {
         {filteredTasks.map((task) => {
           const checkpoints = getCheckpoints(task.routeId);
           const completedCount = Math.floor((task.progress / 100) * checkpoints.length);
+          const isHighlighted = highlightedTaskId === task.id;
           return (
-            <div key={task.id} className="card p-5 card-hover">
+            <div
+              key={task.id}
+              ref={(el) => (taskRefs.current[task.id] = el)}
+              className={`card p-5 card-hover cursor-pointer transition-all duration-300 ${
+                isHighlighted ? 'ring-2 ring-primary-500 ring-offset-2 shadow-lg' : ''
+              }`}
+              onClick={() => {
+                setSelectedTask(task);
+                setShowDetailModal(true);
+              }}
+            >
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -273,7 +310,7 @@ export default function Tasks() {
               <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center gap-3">
                 {task.status === 'pending' && (
                   <button
-                    onClick={() => handleStartTask(task.id)}
+                    onClick={(e) => { e.stopPropagation(); handleStartTask(task.id); }}
                     className="btn btn-primary flex items-center gap-2 flex-1 min-w-[120px]"
                   >
                     <Play className="w-4 h-4 flex-shrink-0" />
@@ -283,7 +320,7 @@ export default function Tasks() {
                 {task.status === 'in_progress' && (
                   <>
                     <button
-                      onClick={() => openScanModal(task)}
+                      onClick={(e) => { e.stopPropagation(); openScanModal(task); }}
                       className="btn btn-primary flex items-center gap-2 flex-1 min-w-[120px]"
                     >
                       <QrCode className="w-4 h-4 flex-shrink-0" />
@@ -291,7 +328,7 @@ export default function Tasks() {
                     </button>
                     {task.progress >= 100 && (
                       <button
-                        onClick={() => updateTaskStatus(task.id, 'completed', 100)}
+                        onClick={(e) => { e.stopPropagation(); updateTaskStatus(task.id, 'completed', 100); }}
                         className="btn btn-outline flex items-center gap-2"
                       >
                         <CheckCircle className="w-4 h-4 flex-shrink-0" />
@@ -322,6 +359,105 @@ export default function Tasks() {
         <div className="text-center py-16">
           <ClipboardList className="w-16 h-16 mx-auto text-gray-300 mb-4" />
           <p className="text-gray-500">暂无任务</p>
+        </div>
+      )}
+
+      {showDetailModal && selectedTask && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
+              <div>
+                <h3 className="font-semibold text-gray-900">{selectedTask.name}</h3>
+                <div className="mt-1">{getStatusBadge(selectedTask.status)}</div>
+              </div>
+              <button
+                onClick={() => { setShowDetailModal(false); setHighlightedTaskId(null); }}
+                className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">巡检路线</p>
+                  <p className="text-sm font-medium text-gray-900 flex items-center gap-1">
+                    <MapPin className="w-4 h-4 text-gray-400" />
+                    {getRouteName(selectedTask.routeId)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">计划日期</p>
+                  <p className="text-sm font-medium text-gray-900 flex items-center gap-1">
+                    <Calendar className="w-4 h-4 text-gray-400" />
+                    {selectedTask.scheduledDate}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">负责人</p>
+                  <p className="text-sm font-medium text-gray-900 flex items-center gap-1">
+                    <User className="w-4 h-4 text-gray-400" />
+                    {currentUser.name}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">检查进度</p>
+                  <p className="text-sm font-medium text-gray-900">
+                    {selectedTask.progress}%
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-500 mb-2">检查点列表</p>
+                <div className="space-y-2">
+                  {getCheckpoints(selectedTask.routeId).map((cp, i) => (
+                    <div key={cp.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                      <div className="w-6 h-6 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center text-xs font-medium">
+                        {i + 1}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">{cp.name}</p>
+                        <p className="text-xs text-gray-500">{cp.location}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="p-5 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
+              <button
+                onClick={() => { setShowDetailModal(false); setHighlightedTaskId(null); }}
+                className="btn btn-outline flex-1"
+              >
+                关闭
+              </button>
+              {selectedTask.status === 'pending' && (
+                <button
+                  onClick={() => {
+                    handleStartTask(selectedTask.id);
+                    setShowDetailModal(false);
+                  }}
+                  className="btn btn-primary flex-1 flex items-center justify-center gap-2"
+                >
+                  <Play className="w-4 h-4" />
+                  开始巡检
+                </button>
+              )}
+              {selectedTask.status === 'in_progress' && (
+                <button
+                  onClick={() => {
+                    openScanModal(selectedTask);
+                    setShowDetailModal(false);
+                  }}
+                  className="btn btn-primary flex-1 flex items-center justify-center gap-2"
+                >
+                  <QrCode className="w-4 h-4" />
+                  扫码登记
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -452,23 +588,4 @@ export default function Tasks() {
   );
 }
 
-function ClipboardList(props: { className?: string }) {
-  return (
-    <svg
-      {...props}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect width="8" height="4" x="8" y="2" rx="1" ry="1" />
-      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-      <path d="M12 11h4" />
-      <path d="M12 16h4" />
-      <path d="M8 11h.01" />
-      <path d="M8 16h.01" />
-    </svg>
-  );
-}
+
